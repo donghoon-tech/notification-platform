@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-고가용성, 수평 확장 가능한 실시간 Push System.
+Highly available, horizontally scalable real-time Push System.
 - **Target**: 1M+ concurrent WebSocket connections
 - **Throughput**: 100K messages/sec
 - **Latency**: p99 < 100ms end-to-end
@@ -15,14 +15,82 @@
 > Known design gaps deferred to avoid over-engineering before v1.0.
 > Each item **must be resolved before implementation of its tagged phase**.
 
-- [ ] **[Pre-v1.0] Full Platform Architecture** — This doc covers In-App Push Gateway only. The full `Notification API → Dispatcher → Channel Workers` flow and inter-service communication diagram needs to be documented before coding begins.
-- [ ] **[Pre-v1.0] Tech Stack PoC** — Validate Spring WebFlux + STOMP compatibility on Netty. If integration is complex, evaluate Servlet stack + Virtual Threads as a simpler alternative.
+- [x] **[Pre-v1.0] Full Platform Architecture** — ~~This doc covers In-App Push Gateway only. The full `Notification API → Dispatcher → Channel Workers` flow and inter-service communication diagram needs to be documented before coding begins.~~ (Resolved via architecture addition)
+- [x] **[Pre-v1.0] Tech Stack PoC** — ~~Validate Spring WebFlux + STOMP compatibility on Netty. If integration is complex, evaluate Servlet stack + Virtual Threads as a simpler alternative.~~ (Resolved: Abandoned WebFlux in favor of Servlet + Virtual Threads on Java 21)
 - [ ] **[Pre-v2.0] FR-03 Race Condition (TOCTOU)** — Design the scenario: user disconnects *between* presence-check and WS delivery. Specify the ACK timeout window and how it triggers the fallback chain (e.g., WS send failure → emit event to Kafka → FCM consumer picks up).
 - [ ] **[Pre-v2.0] NFR-10 Graceful Degradation** — Define per-component Redis failure behavior: Session Registry down / Pub-Sub Relay down / Offline Queue down. What does each fallback to? (e.g., conservative-offline → FCM, DB-backed dedup as last resort)
 
 ---
 
 ## 2. High-Level Architecture
+
+### 2.1 Full Platform Architecture (Logical)
+
+This diagram illustrates the end-to-end data flow from the moment an internal service requests a notification to its final delivery via multiple channel adapters. The Dispatcher isolates the routing and templating complexity away from the individual channel workers.
+
+```mermaid
+graph TD
+    %% Producers
+    P1[Internal Service A] -->|"HTTP POST /v1/notifications"| API
+    P2[Internal Service B] -->|"HTTP POST /v1/notifications"| API
+
+    %% Ingress & API
+    subgraph "Ingress Layer"
+        API["Notification API<br/>(Auth, Validation, Fast-Fail)"]
+    end
+
+    %% Event Bus
+    subgraph "Event Bus (Apache Kafka)"
+        K_INBOX[("topic: notification.request")]
+        K_INAPP[("topic: push.messages")]
+        K_EMAIL[("topic: push.email")]
+        K_DLQ[("topic: push.dlq")]
+    end
+
+    API -->|"Publish (Idempotent)"| K_INBOX
+
+    %% Routing
+    subgraph "Core Routing"
+        DISP["Dispatcher Service<br/>(Deduplication, Routing)"]
+        R_PRES[("Redis: Presence")]
+        R_DEDUP[("Redis: Dedup Cache")]
+    end
+
+    K_INBOX -->|"Consume"| DISP
+    DISP -.->|"Is Online?"| R_PRES
+    DISP -.->|"Check Hash"| R_DEDUP
+    
+    DISP -->|"Route"| K_INAPP
+    DISP -->|"Route"| K_EMAIL
+
+    %% Workers
+    subgraph "Channel Adapters"
+        W_INAPP["In-App Gateway<br/>(Tomcat/Virtual Threads)"]
+        W_EMAIL["Email Worker<br/>(JavaMail/SES)"]
+    end
+
+    K_INAPP -->|"Consume"| W_INAPP
+    K_EMAIL -->|"Consume"| W_EMAIL
+
+    %% Delivery
+    W_INAPP -->|"STOMP"| C1["Web / App Client"]
+    W_EMAIL -->|"SMTP/API"| E1["AWS SES / SendGrid"]
+
+    %% Failure
+    DISP -.->|"Invalid Request"| K_DLQ
+    W_EMAIL -.->|"Max Retries Exceeded"| K_DLQ
+
+    classDef core fill:#f9f,stroke:#333,stroke-width:2px;
+    class DISP core;
+    classDef worker fill:#e1f5fe,stroke:#0277bd,stroke-width:1px;
+    class W_INAPP,W_EMAIL worker;
+    classDef kafka fill:#fff3e0,stroke:#e65100,stroke-width:1px,stroke-dasharray: 5 5;
+    class K_INBOX,K_INAPP,K_EMAIL,K_DLQ kafka;
+```
+
+### 2.2 In-App Push Gateway Architecture (Physical)
+
+This specifically details the physical connection flow inside `In-App Gateway(WebSocket)`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -78,39 +146,39 @@
 ## 3. Component Breakdown
 
 ### 3.1 Push Gateway (WebSocket Server)
-**역할**: 클라이언트 연결 관리, 메시지 수신·전달
+**Role**: Client connection management, message reception and delivery
 
 - **Protocol**: STOMP over WebSocket (graceful degradation → SSE)
-- **Connection Model**: Netty (non-blocking NIO) via Spring WebFlux + reactive STOMP
-- **Capacity**: 인스턴스당 ~50K connections (OS fd limit 조정)
+- **Connection Model**: Apache Tomcat via Spring MVC (Servlet) + Spring WebSocket (STOMP) + **Java 21 Virtual Threads**
+- **Capacity**: ~50K connections per instance (requires OS fd limit tuning)
 - **Health Check**: `/actuator/health/liveness`, `/actuator/health/readiness`
 
 **Connection Flow**:
 ```
-Client → WS Upgrade → JWT Auth Filter → Session 등록 (Redis)
-                                       → 오프라인 메시지 flush
+Client → WS Upgrade → JWT Auth Filter → Session Registration (Redis)
+                                       → Flush offline messages
 ```
 
 **Disconnect Flow**:
 ```
-TCP FIN / Heartbeat timeout → Session 삭제 (Redis)
-                            → Presence 업데이트
-                            → 미전달 메시지 오프라인 큐 이동
+TCP FIN / Heartbeat timeout → Remove Session (Redis)
+                            → Update Presence
+                            → Move undelivered messages to offline queue
 ```
 
 ### 3.2 Redis Connection Registry
-**구조**:
+**Structure**:
 ```
 push:session:{userId}   → Set<sessionId>          (TTL: 3600s)
 push:session:{sessionId} → {serverId, userId, ...} (TTL: 3600s)
-push:presence:{userId}  → "online" | timestamp    (TTL: 60s, heartbeat 갱신)
+push:presence:{userId}  → "online" | timestamp    (TTL: 60s, heartbeat refresh)
 push:offline:{userId}   → List<message>           (LPUSH/BRPOP, max 1000)
 push:ratelimit:{userId} → Token Bucket            (TTL: 1s)
 ```
 
 **Pub/Sub Relay**:
 ```
-채널: push:relay:{serverId}
+Channel: push:relay:{serverId}
 - Gateway A → Redis PUBLISH push:relay:server-B → Gateway B → Client
 ```
 
@@ -122,12 +190,12 @@ push:ratelimit:{userId} → Token Bucket            (TTL: 1s)
 
 | Topic | Partitions | Retention | Purpose |
 |-------|-----------|-----------|---------|
-| `push.messages` | 32 | 24h | 전송 대상 메시지 |
-| `push.acks` | 16 | 6h | 클라이언트 응답 (ACK) |
-| `push.dlq` | 8 | 7d | 실패 메시지 |
-| `push.events` | 16 | 24h | 연결/해제 이벤트 |
+| `push.messages` | 32 | 24h | Outbound messages targeting clients |
+| `push.acks` | 16 | 6h | Client acknowledgments (ACK) |
+| `push.dlq` | 8 | 7d | Failed messages |
+| `push.events` | 16 | 24h | Connect/Disconnect events |
 
-**Partition Key**: `userId` hash → 동일 유저 메시지는 단일 파티션보장
+**Partition Key**: `userId` hash → Guarantees message ordering per user
 
 ### 3.4 Message Flow
 
@@ -154,27 +222,27 @@ Producer → Kafka(push.messages)
 ## 4. Key Design Decisions
 
 ### 4.1 Fan-out Strategy
-- **1:1 direct**: userId로 직접 라우팅
-- **1:N broadcast**: topic/channel subscribe 방식
-  - 채널 구독 정보 PostgreSQL 저장, Redis 캐싱
-  - Consumer가 채널 구독자 목록 조회 → 각 userId로 분산 전송
-  - **Fan-out threshold**: 구독자 10K 이상 → Kafka별도 fan-out topic
+- **1:1 direct**: Direct routing via `userId`
+- **1:N broadcast**: Topic/Channel subscribe approach
+  - Channel subscription info persisted in PostgreSQL, cached in Redis
+  - Consumer retrieves channel subscriber list → distributed delivery per `userId`
+  - **Fan-out threshold**: > 10K subscribers → Handle via dedicated Kafka fan-out topic
 
 ### 4.2 Message Ordering
-- Partition key = `userId` → 동일 유저 메시지는 단일 파티션
+- Partition key = `userId` → Messages for the same user land in a single partition
 - Snowflake ID 기반 messageId (timestamp + serverId + seq)
-- 클라이언트 side reordering: 200ms buffer window
+- Client-side reordering: 200ms buffer window
 
 ### 4.3 Exactly-Once Delivery
 - **Producer**: `acks=all`, `enable.idempotence=true`
 - **Consumer**: manual commit after Redis ACK
 - **Deduplication**: Redis SET `push:dedup:{messageId}` (TTL: 10min)
-- **At-least-once → Client ack**: 클라이언트 ACK 없으면 3회 재시도, 이후 DLQ
+- **At-least-once → Client ack**: If no client ACK received, retry up to 3 times, then route to DLQ
 
 ### 4.4 Backpressure & Rate Limiting
 - **Token Bucket** per userId: 100 msg/sec burst, 10 msg/sec sustained
 - **Kafka Consumer**: `max.poll.records=500`, adaptive fetch
-- **Circuit Breaker** (Resilience4j): DB/Redis 장애 시 fallback
+- **Circuit Breaker** (Resilience4j): Fallback triggers on DB/Redis failures
 
 ### 4.5 Graceful Shutdown
 ```
@@ -192,7 +260,7 @@ SIGTERM →
 
 ### Horizontal Scaling
 - **Gateway**: Stateless (session state in Redis) → HPA on CPU/connection count
-- **Consumer**: Kafka consumer group → partition 수만큼 병렬 소비
+- **Consumer**: Kafka consumer group → Parallel consumption aligning with partition count
 - **Redis**: Cluster mode (16384 slots)
 - **PostgreSQL**: Read replica-s + PgBouncer connection pooling
 
@@ -209,12 +277,12 @@ Redis: 1M sessions × 200B = 200MB memory
 
 | Pattern | Tool | Scenario |
 |---------|------|----------|
-| Circuit Breaker | Resilience4j | DB/Redis 연결 실패 |
-| Retry | Resilience4j | Kafka publish 실패 |
-| Bulkhead | Virtual Thread pool isolation | Consumer 과부하 격리 |
-| Rate Limit | Redis Token Bucket | 클라이언트 DoS 방어 |
-| Timeout | WebClient + CompletableFuture | 하위 서비스 지연 |
-| DLQ | Kafka DLQ Topic | 영구 실패 메시지 |
+| Circuit Breaker | Resilience4j | DB/Redis connection failures |
+| Retry | Resilience4j | Kafka publish failures |
+| Bulkhead | Virtual Thread pool isolation | Consumer overload isolation |
+| Rate Limit | Redis Token Bucket | Client DoS protection |
+| Timeout | WebClient + CompletableFuture | Downstream service latency |
+| DLQ | Kafka DLQ Topic | Permanent message failures |
 
 ---
 
@@ -267,8 +335,8 @@ PostgreSQL:   1 primary + 2 read replicas + PgBouncer
 | Layer | Technology |
 |-------|-----------|
 | Language | Java 21 (Virtual Threads) |
-| Framework | Spring Boot 3.3 + WebFlux |
-| WebSocket | Spring WebSocket (STOMP) + Netty |
+| Framework | Spring Boot 3.3 + Spring MVC |
+| WebSocket | Spring WebSocket (STOMP) + Tomcat |
 | Messaging | Apache Kafka 3.6 |
 | Cache/Registry | Redis 7.x Cluster |
 | Database | PostgreSQL 16 + PgBouncer |
