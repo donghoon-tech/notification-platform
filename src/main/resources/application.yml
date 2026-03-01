@@ -29,3 +29,14 @@ spring:
       inbound: notification.requests
       inapp: notification.inapp
       email: notification.email
+  mail:
+    host: localhost
+    port: 1025 # Default for Mailpit/Mailhog
+    username: 
+    password: 
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
