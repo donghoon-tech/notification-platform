@@ -3,6 +3,7 @@ package com.notification.platform.service;
 import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
 import com.notification.platform.domain.entity.NotificationRequest;
+import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class NotificationServiceTest {
 
         // Then
         assertThat(response.getRequestId()).isNotNull();
-        assertThat(response.getStatus()).isEqualTo("ACCEPTED");
+        assertThat(response.getStatus()).isEqualTo(NotificationIngressStatus.ACCEPTED);
         verify(repository, times(1)).save(any(NotificationRequest.class));
         verify(kafkaTemplate, times(1)).send(eq("notification.requests"), eq("user-789"), any());
     }

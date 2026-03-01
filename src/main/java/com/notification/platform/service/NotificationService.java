@@ -3,6 +3,7 @@ package com.notification.platform.service;
 import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
 import com.notification.platform.domain.entity.NotificationRequest;
+import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
 import com.notification.platform.messaging.event.NotificationRequestEvent;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ public class NotificationService {
     public NotificationSendResponse triggerNotification(NotificationSendRequest request) {
         // Build the entity from request
         NotificationRequest notificationRequest = NotificationRequest.builder()
-                .id(UUID.randomUUID()) // Snowflake ID planned for future
+                .id(UUID.randomUUID())
                 .idempotencyKey(request.getIdempotencyKey())
                 .producerName(request.getProducerName())
                 .priority(request.getPriority())
@@ -48,13 +49,12 @@ public class NotificationService {
                     .payload(request.getPayload())
                     .build();
 
-            // Using recipientId as key to ensure ordering for the same user
             kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
             log.info("Notification request published to Kafka: {}", notificationRequest.getId());
 
             return NotificationSendResponse.builder()
                     .requestId(notificationRequest.getId())
-                    .status("ACCEPTED")
+                    .status(NotificationIngressStatus.ACCEPTED)
                     .build();
         } catch (Exception e) {
             log.warn("Failed to process notification request: {}", e.getMessage());

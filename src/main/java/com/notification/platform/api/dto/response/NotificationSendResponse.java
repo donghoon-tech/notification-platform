@@ -1,5 +1,6 @@
 package com.notification.platform.api.dto.response;
 
+import com.notification.platform.domain.enums.NotificationIngressStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,6 +15,6 @@ import java.util.UUID;
 public class NotificationSendResponse {
 
     private UUID requestId;
-    private String status; // ACCEPTED, DUPLICATE
+    private NotificationIngressStatus status;
 
 }
