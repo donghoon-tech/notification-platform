@@ -25,3 +25,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "com.notification.platform.messaging.event"
+    topic:
+      inbound: notification.requests
+      inapp: notification.inapp
+      email: notification.email
