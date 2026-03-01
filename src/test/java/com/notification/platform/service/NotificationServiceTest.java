@@ -3,6 +3,7 @@ package com.notification.platform.service;
 import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
 import com.notification.platform.domain.entity.NotificationRequest;
+import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +42,7 @@ class NotificationServiceTest {
                 .idempotencyKey("test-key-123")
                 .producerName("ORDER_SERVICE")
                 .recipientId("user-789")
-                .channel("IN_APP")
+                .channel(NotificationChannel.IN_APP)
                 .payload(Map.of("message", "Hello World"))
                 .build();
 

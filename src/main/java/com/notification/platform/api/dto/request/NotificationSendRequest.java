@@ -1,5 +1,6 @@
 package com.notification.platform.api.dto.request;
 
+import com.notification.platform.domain.enums.NotificationChannel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -22,8 +23,8 @@ public class NotificationSendRequest {
     @NotBlank(message = "Recipient ID is required")
     private String recipientId;
 
-    @NotBlank(message = "Channel is required")
-    private String channel; // e.g., IN_APP, EMAIL
+    @NotNull(message = "Channel is required")
+    private NotificationChannel channel;
 
     private String targetAddress; // Optional: email address or device token
 

@@ -1,6 +1,7 @@
 package com.notification.platform.domain.entity;
 
 import com.notification.platform.domain.enums.DeliveryStatus;
+import com.notification.platform.domain.enums.NotificationChannel;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -30,7 +31,8 @@ public class DeliveryLog {
     private String recipientId;
 
     @Column(nullable = false)
-    private String channel;
+    @Enumerated(EnumType.STRING)
+    private NotificationChannel channel;
 
     private String targetAddress;
 

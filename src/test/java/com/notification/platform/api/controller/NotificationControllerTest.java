@@ -3,6 +3,7 @@ package com.notification.platform.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
+import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.service.NotificationService;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +45,7 @@ class NotificationControllerTest {
                 .idempotencyKey("test-key-123")
                 .producerName("ORDER_SERVICE")
                 .recipientId("user-789")
-                .channel("IN_APP")
+                .channel(NotificationChannel.IN_APP)
                 .payload(Map.of("message", "Hello World"))
                 .build();
 
