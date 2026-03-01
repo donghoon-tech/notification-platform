@@ -1,25 +1,27 @@
 spring:
   application:
     name: notification-platform
-
   datasource:
     url: jdbc:postgresql://localhost:5432/notification_db
-    username: notification_user
-    password: notification_password
+    username: user
+    password: password
     driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-
   jpa:
     hibernate:
-      ddl-auto: validate # Flyway가 테이블 관리를 전담하므로 validate 사용
-    show-sql: true
+      ddl-auto: validate
     properties:
       hibernate:
-        format_sql: true
-
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
-    enabled: true
-    baseline-on-migrate: true # 기존 DB가 존재하더라도 Baseline 잡아주도록 (보기 편의상)
-    locations: classpath:db/migration
+    enabled: false # Temporarily disabled for v1.0 local dev
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: notification-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.notification.platform.messaging.event"

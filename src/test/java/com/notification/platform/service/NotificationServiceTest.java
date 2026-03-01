@@ -10,11 +10,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -24,12 +26,15 @@ class NotificationServiceTest {
     @Mock
     private NotificationRequestRepository repository;
 
+    @Mock
+    private KafkaTemplate<String, Object> kafkaTemplate;
+
     @InjectMocks
     private NotificationService notificationService;
 
     @Test
-    @DisplayName("Service saves notification request and returns response")
-    void triggerNotification_SavesAndReturns() {
+    @DisplayName("Service saves notification request and publishes to Kafka")
+    void triggerNotification_SavesAndPublishes() {
         // Given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("test-key-123")
@@ -46,5 +51,6 @@ class NotificationServiceTest {
         assertThat(response.getRequestId()).isNotNull();
         assertThat(response.getStatus()).isEqualTo("ACCEPTED");
         verify(repository, times(1)).save(any(NotificationRequest.class));
+        verify(kafkaTemplate, times(1)).send(eq("notification.requests"), eq("user-789"), any());
     }
 }

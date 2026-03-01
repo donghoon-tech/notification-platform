@@ -4,8 +4,10 @@ import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
 import com.notification.platform.domain.entity.NotificationRequest;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
+import com.notification.platform.messaging.event.NotificationRequestEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,15 +19,15 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRequestRepository repository;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    private static final String TOPIC = "notification.requests";
 
     @Transactional
     public NotificationSendResponse triggerNotification(NotificationSendRequest request) {
-        // Idempotency check (simplified for now, using DB constraint exception later or explicit find)
-        // In a real high-traffic scenario, this should be checked in Redis first.
-        
         // Build the entity from request
         NotificationRequest notificationRequest = NotificationRequest.builder()
-                .id(UUID.randomUUID()) // Replace with Snowflake ID generator in the future
+                .id(UUID.randomUUID()) // Snowflake ID planned for future
                 .idempotencyKey(request.getIdempotencyKey())
                 .producerName(request.getProducerName())
                 .priority(request.getPriority())
@@ -34,20 +36,29 @@ public class NotificationService {
 
         try {
             repository.save(notificationRequest);
-            log.info("Notification request saved: {}", notificationRequest.getId());
-            
-            // TODO: Next step - Send to internal message bus (Kafka)
-            // for now, we just return the success
-            
+            log.info("Notification request saved to DB: {}", notificationRequest.getId());
+
+            // Publish event to Kafka
+            NotificationRequestEvent event = NotificationRequestEvent.builder()
+                    .requestId(notificationRequest.getId())
+                    .recipientId(request.getRecipientId())
+                    .channel(request.getChannel())
+                    .targetAddress(request.getTargetAddress())
+                    .priority(request.getPriority())
+                    .payload(request.getPayload())
+                    .build();
+
+            // Using recipientId as key to ensure ordering for the same user
+            kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
+            log.info("Notification request published to Kafka: {}", notificationRequest.getId());
+
             return NotificationSendResponse.builder()
                     .requestId(notificationRequest.getId())
                     .status("ACCEPTED")
                     .build();
         } catch (Exception e) {
-            // Simplified idempotency handling: if key exists, we might want to return existing ID
-            // For now, let's just log and throw if it's not a duplicate key error
-            log.warn("Failed to save notification request (possible duplicate key): {}", e.getMessage());
-            throw e; 
+            log.warn("Failed to process notification request: {}", e.getMessage());
+            throw e;
         }
     }
 }
