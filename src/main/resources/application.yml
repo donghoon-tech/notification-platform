@@ -39,3 +39,8 @@ spring:
           auth: false
           starttls:
             enable: false
+
+logging:
+  level:
+    org.flywaydb: INFO
+    org.hibernate.SQL: INFO
