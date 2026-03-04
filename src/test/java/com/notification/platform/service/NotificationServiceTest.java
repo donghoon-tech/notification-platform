@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -51,27 +52,8 @@ class NotificationServiceTest {
     }
 
     @Test
-    @DisplayName("Detect duplicate request and skip event publishing")
-    void triggerNotification_DuplicateDetected() {
-        // Given
-        UUID existingId = UUID.randomUUID();
-        NotificationSendRequest request = NotificationSendRequest.builder()
-                .idempotencyKey("duplicate-key")
-                .build();
-
-        given(valueOperations.get("idempotency:duplicate-key")).willReturn(existingId.toString());
-
-        // When
-        NotificationSendResponse response = notificationService.triggerNotification(request);
-
-        // Then
-        assertThat(response.getRequestId()).isEqualTo(existingId);
-        verify(eventPublisher, never()).publishEvent(any());
-    }
-
-    @Test
-    @DisplayName("Process new request and publish local event")
-    void triggerNotification_NewRequestPublished() {
+    @DisplayName("Process new request and save with ACCEPTED status (FR-24)")
+    void triggerNotification_SavesWithAcceptedStatus() {
         // Given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("new-key")
@@ -87,11 +69,32 @@ class NotificationServiceTest {
         given(repository.findByIdempotencyKey(anyString())).willReturn(Optional.empty());
 
         // When
+        notificationService.triggerNotification(request);
+
+        // Then: FR-24 - Initial status must be ACCEPTED
+        ArgumentCaptor<NotificationRequest> captor = ArgumentCaptor.forClass(NotificationRequest.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationIngressStatus.ACCEPTED);
+        
+        verify(eventPublisher, times(1)).publishEvent(any(NotificationRequestCreatedEvent.class));
+    }
+
+    @Test
+    @DisplayName("Return existing requestId when duplicate detected")
+    void triggerNotification_DuplicateDetected() {
+        // Given
+        UUID existingId = UUID.randomUUID();
+        NotificationSendRequest request = NotificationSendRequest.builder()
+                .idempotencyKey("duplicate-key")
+                .build();
+
+        given(valueOperations.get("idempotency:duplicate-key")).willReturn(existingId.toString());
+
+        // When
         NotificationSendResponse response = notificationService.triggerNotification(request);
 
         // Then
-        assertThat(response.getRequestId()).isNotNull();
-        verify(repository, times(1)).save(any(NotificationRequest.class));
-        verify(eventPublisher, times(1)).publishEvent(any(NotificationRequestCreatedEvent.class));
+        assertThat(response.getRequestId()).isEqualTo(existingId);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

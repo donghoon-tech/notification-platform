@@ -1,5 +1,6 @@
 package com.notification.platform.domain.entity;
 
+import com.notification.platform.domain.enums.NotificationIngressStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -36,7 +37,15 @@ public class NotificationRequest {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> payload;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationIngressStatus status;
+
     @CreatedDate
     @Column(updatable = false)
     private OffsetDateTime createdAt;
+
+    public void updateStatus(NotificationIngressStatus newStatus) {
+        this.status = newStatus;
+    }
 }

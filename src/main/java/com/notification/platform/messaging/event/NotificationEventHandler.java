@@ -1,12 +1,18 @@
 package com.notification.platform.messaging.event;
 
+import com.notification.platform.domain.enums.NotificationIngressStatus;
+import com.notification.platform.domain.repository.NotificationRequestRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -14,12 +20,14 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class NotificationEventHandler {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final NotificationRequestRepository repository;
     private static final String TOPIC = "notification.requests";
 
     @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleNotificationRequestCreated(NotificationRequestCreatedEvent event) {
-        log.info("Transaction committed. Publishing notification request to Kafka: {}", event.getRequestId());
+        log.info("Starting post-commit Kafka dispatch for request: {}", event.getRequestId());
 
         NotificationRequestEvent kafkaEvent = NotificationRequestEvent.builder()
                 .requestId(event.getRequestId())
@@ -32,9 +40,15 @@ public class NotificationEventHandler {
 
         try {
             kafkaTemplate.send(TOPIC, event.getRecipientId(), kafkaEvent);
-            log.info("Successfully published to Kafka for request: {}", event.getRequestId());
+            updateStatus(event.getRequestId(), NotificationIngressStatus.DISPATCHED);
+            log.info("Dispatched to Kafka and updated status to DISPATCHED: {}", event.getRequestId());
         } catch (Exception e) {
-            log.error("Failed to publish to Kafka after commit for request: {}. Error: {}", event.getRequestId(), e.getMessage());
+            log.error("Kafka dispatch failed for request: {}. Marking status as FAILED.", event.getRequestId(), e);
+            updateStatus(event.getRequestId(), NotificationIngressStatus.FAILED);
         }
+    }
+
+    private void updateStatus(UUID requestId, NotificationIngressStatus status) {
+        repository.findById(requestId).ifPresent(request -> request.updateStatus(status));
     }
 }

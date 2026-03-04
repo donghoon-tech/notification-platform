@@ -32,7 +32,7 @@ public class NotificationService {
     public NotificationSendResponse triggerNotification(NotificationSendRequest request) {
         String idempotencyKey = request.getIdempotencyKey();
 
-        // 1. Check Redis for cached requestId
+        // 1. Check Redis for idempotency
         String cachedRequestId = redisTemplate.opsForValue().get(IDEMPOTENCY_PREFIX + idempotencyKey);
         if (cachedRequestId != null) {
             log.info("Duplicate request detected in cache for key: {}", idempotencyKey);
@@ -42,7 +42,7 @@ public class NotificationService {
                     .build();
         }
 
-        // 2. Check DB and update cache if found (Fallback)
+        // 2. Check DB and update cache (Fallback)
         return repository.findByIdempotencyKey(idempotencyKey)
                 .map(existing -> {
                     log.info("Duplicate request detected in DB for key: {}", idempotencyKey);
@@ -62,12 +62,13 @@ public class NotificationService {
                 .producerName(request.getProducerName())
                 .priority(request.getPriority())
                 .payload(request.getPayload())
+                .status(NotificationIngressStatus.ACCEPTED) // FR-24: Initial status
                 .build();
 
         repository.save(notificationRequest);
         redisTemplate.opsForValue().set(IDEMPOTENCY_PREFIX + request.getIdempotencyKey(), notificationRequest.getId().toString(), IDEMPOTENCY_TTL);
 
-        // Publish local event instead of direct Kafka sending to ensure transactional safety
+        // ADR-01: Publish local event for post-commit dispatch
         NotificationRequestCreatedEvent localEvent = NotificationRequestCreatedEvent.builder()
                 .requestId(notificationRequest.getId())
                 .recipientId(request.getRecipientId())
@@ -78,7 +79,7 @@ public class NotificationService {
                 .build();
 
         eventPublisher.publishEvent(localEvent);
-        log.info("Local event published for notification request: {}", notificationRequest.getId());
+        log.info("Notification request persisted and event published: {}", notificationRequest.getId());
 
         return NotificationSendResponse.builder()
                 .requestId(notificationRequest.getId())
