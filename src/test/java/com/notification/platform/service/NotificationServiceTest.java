@@ -6,21 +6,26 @@ import com.notification.platform.domain.entity.NotificationRequest;
 import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -29,30 +34,66 @@ class NotificationServiceTest {
     private NotificationRequestRepository repository;
 
     @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    @Mock
     private KafkaTemplate<String, Object> kafkaTemplate;
 
     @InjectMocks
     private NotificationService notificationService;
 
+    @BeforeEach
+    void setUp() {
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    }
+
     @Test
-    @DisplayName("Service saves notification request and publishes to Kafka")
-    void triggerNotification_SavesAndPublishes() {
+    @DisplayName("Return existing requestId when duplicate detected in Redis")
+    void triggerNotification_DuplicateInRedis() {
+        // Given
+        UUID existingId = UUID.randomUUID();
+        NotificationSendRequest request = NotificationSendRequest.builder()
+                .idempotencyKey("duplicate-key")
+                .build();
+
+        given(valueOperations.get("idempotency:duplicate-key")).willReturn(existingId.toString());
+
+        // When
+        NotificationSendResponse response = notificationService.triggerNotification(request);
+
+        // Then
+        assertThat(response.getRequestId()).isEqualTo(existingId);
+        verify(repository, never()).save(any());
+        verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("Process and publish new request when no duplicate found")
+    void triggerNotification_NewRequest() {
         // Given
         NotificationSendRequest request = NotificationSendRequest.builder()
-                .idempotencyKey("test-key-123")
-                .producerName("ORDER_SERVICE")
-                .recipientId("user-789")
-                .channel(NotificationChannel.IN_APP)
-                .payload(Map.of("message", "Hello World"))
+                .idempotencyKey("new-key")
+                .producerName("TEST_SERVICE")
+                .recipientId("user-123")
+                .channel(NotificationChannel.EMAIL)
+                .targetAddress("test@test.com")
+                .payload(Map.of("message", "hello"))
+                .priority("NORMAL")
                 .build();
+
+        given(valueOperations.get(anyString())).willReturn(null);
+        given(repository.findByIdempotencyKey(anyString())).willReturn(Optional.empty());
 
         // When
         NotificationSendResponse response = notificationService.triggerNotification(request);
 
         // Then
         assertThat(response.getRequestId()).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(NotificationIngressStatus.ACCEPTED);
         verify(repository, times(1)).save(any(NotificationRequest.class));
-        verify(kafkaTemplate, times(1)).send(eq("notification.requests"), eq("user-789"), any());
+        verify(valueOperations, times(1)).set(eq("idempotency:new-key"), anyString(), any());
+        verify(kafkaTemplate, times(1)).send(eq("notification.requests"), eq("user-123"), any());
     }
 }

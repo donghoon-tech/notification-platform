@@ -8,10 +8,12 @@ import com.notification.platform.domain.repository.NotificationRequestRepository
 import com.notification.platform.messaging.event.NotificationRequestEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.UUID;
 
 @Slf4j
@@ -20,13 +22,41 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRequestRepository repository;
+    private final StringRedisTemplate redisTemplate;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     private static final String TOPIC = "notification.requests";
+    private static final String IDEMPOTENCY_PREFIX = "idempotency:";
+    private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
 
     @Transactional
     public NotificationSendResponse triggerNotification(NotificationSendRequest request) {
-        // Build the entity from request
+        String idempotencyKey = request.getIdempotencyKey();
+
+        // 1. Check Redis for cached requestId
+        String cachedRequestId = redisTemplate.opsForValue().get(IDEMPOTENCY_PREFIX + idempotencyKey);
+        if (cachedRequestId != null) {
+            log.info("Duplicate request detected in cache for key: {}", idempotencyKey);
+            return NotificationSendResponse.builder()
+                    .requestId(UUID.fromString(cachedRequestId))
+                    .status(NotificationIngressStatus.ACCEPTED)
+                    .build();
+        }
+
+        // 2. Check DB and update cache if found (Fallback)
+        return repository.findByIdempotencyKey(idempotencyKey)
+                .map(existing -> {
+                    log.info("Duplicate request detected in DB for key: {}", idempotencyKey);
+                    redisTemplate.opsForValue().set(IDEMPOTENCY_PREFIX + idempotencyKey, existing.getId().toString(), IDEMPOTENCY_TTL);
+                    return NotificationSendResponse.builder()
+                            .requestId(existing.getId())
+                            .status(NotificationIngressStatus.ACCEPTED)
+                            .build();
+                })
+                .orElseGet(() -> createAndPublish(request));
+    }
+
+    private NotificationSendResponse createAndPublish(NotificationSendRequest request) {
         NotificationRequest notificationRequest = NotificationRequest.builder()
                 .id(UUID.randomUUID())
                 .idempotencyKey(request.getIdempotencyKey())
@@ -35,30 +65,24 @@ public class NotificationService {
                 .payload(request.getPayload())
                 .build();
 
-        try {
-            repository.save(notificationRequest);
-            log.info("Notification request saved to DB: {}", notificationRequest.getId());
+        repository.save(notificationRequest);
+        redisTemplate.opsForValue().set(IDEMPOTENCY_PREFIX + request.getIdempotencyKey(), notificationRequest.getId().toString(), IDEMPOTENCY_TTL);
 
-            // Publish event to Kafka
-            NotificationRequestEvent event = NotificationRequestEvent.builder()
-                    .requestId(notificationRequest.getId())
-                    .recipientId(request.getRecipientId())
-                    .channel(request.getChannel())
-                    .targetAddress(request.getTargetAddress())
-                    .priority(request.getPriority())
-                    .payload(request.getPayload())
-                    .build();
+        NotificationRequestEvent event = NotificationRequestEvent.builder()
+                .requestId(notificationRequest.getId())
+                .recipientId(request.getRecipientId())
+                .channel(request.getChannel())
+                .targetAddress(request.getTargetAddress())
+                .priority(request.getPriority())
+                .payload(request.getPayload())
+                .build();
 
-            kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
-            log.info("Notification request published to Kafka: {}", notificationRequest.getId());
+        kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
+        log.info("New notification request processed: {}", notificationRequest.getId());
 
-            return NotificationSendResponse.builder()
-                    .requestId(notificationRequest.getId())
-                    .status(NotificationIngressStatus.ACCEPTED)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to process notification request: {}", e.getMessage());
-            throw e;
-        }
+        return NotificationSendResponse.builder()
+                .requestId(notificationRequest.getId())
+                .status(NotificationIngressStatus.ACCEPTED)
+                .build();
     }
 }
