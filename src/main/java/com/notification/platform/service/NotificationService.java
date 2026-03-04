@@ -5,11 +5,11 @@ import com.notification.platform.api.dto.response.NotificationSendResponse;
 import com.notification.platform.domain.entity.NotificationRequest;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
-import com.notification.platform.messaging.event.NotificationRequestEvent;
+import com.notification.platform.messaging.event.NotificationRequestCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,9 +23,8 @@ public class NotificationService {
 
     private final NotificationRequestRepository repository;
     private final StringRedisTemplate redisTemplate;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    private static final String TOPIC = "notification.requests";
     private static final String IDEMPOTENCY_PREFIX = "idempotency:";
     private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
 
@@ -53,10 +52,10 @@ public class NotificationService {
                             .status(NotificationIngressStatus.ACCEPTED)
                             .build();
                 })
-                .orElseGet(() -> createAndPublish(request));
+                .orElseGet(() -> createAndPublishEvent(request));
     }
 
-    private NotificationSendResponse createAndPublish(NotificationSendRequest request) {
+    private NotificationSendResponse createAndPublishEvent(NotificationSendRequest request) {
         NotificationRequest notificationRequest = NotificationRequest.builder()
                 .id(UUID.randomUUID())
                 .idempotencyKey(request.getIdempotencyKey())
@@ -68,7 +67,8 @@ public class NotificationService {
         repository.save(notificationRequest);
         redisTemplate.opsForValue().set(IDEMPOTENCY_PREFIX + request.getIdempotencyKey(), notificationRequest.getId().toString(), IDEMPOTENCY_TTL);
 
-        NotificationRequestEvent event = NotificationRequestEvent.builder()
+        // Publish local event instead of direct Kafka sending to ensure transactional safety
+        NotificationRequestCreatedEvent localEvent = NotificationRequestCreatedEvent.builder()
                 .requestId(notificationRequest.getId())
                 .recipientId(request.getRecipientId())
                 .channel(request.getChannel())
@@ -77,8 +77,8 @@ public class NotificationService {
                 .payload(request.getPayload())
                 .build();
 
-        kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
-        log.info("New notification request processed: {}", notificationRequest.getId());
+        eventPublisher.publishEvent(localEvent);
+        log.info("Local event published for notification request: {}", notificationRequest.getId());
 
         return NotificationSendResponse.builder()
                 .requestId(notificationRequest.getId())

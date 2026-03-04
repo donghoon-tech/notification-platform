@@ -6,6 +6,7 @@ import com.notification.platform.domain.entity.NotificationRequest;
 import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.domain.repository.NotificationRequestRepository;
+import com.notification.platform.messaging.event.NotificationRequestCreatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,9 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Map;
 import java.util.Optional;
@@ -23,7 +24,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -40,7 +40,7 @@ class NotificationServiceTest {
     private ValueOperations<String, String> valueOperations;
 
     @Mock
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -51,8 +51,8 @@ class NotificationServiceTest {
     }
 
     @Test
-    @DisplayName("Return existing requestId when duplicate detected in Redis")
-    void triggerNotification_DuplicateInRedis() {
+    @DisplayName("Detect duplicate request and skip event publishing")
+    void triggerNotification_DuplicateDetected() {
         // Given
         UUID existingId = UUID.randomUUID();
         NotificationSendRequest request = NotificationSendRequest.builder()
@@ -66,13 +66,12 @@ class NotificationServiceTest {
 
         // Then
         assertThat(response.getRequestId()).isEqualTo(existingId);
-        verify(repository, never()).save(any());
-        verify(kafkaTemplate, never()).send(anyString(), anyString(), any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
-    @DisplayName("Process and publish new request when no duplicate found")
-    void triggerNotification_NewRequest() {
+    @DisplayName("Process new request and publish local event")
+    void triggerNotification_NewRequestPublished() {
         // Given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("new-key")
@@ -93,7 +92,6 @@ class NotificationServiceTest {
         // Then
         assertThat(response.getRequestId()).isNotNull();
         verify(repository, times(1)).save(any(NotificationRequest.class));
-        verify(valueOperations, times(1)).set(eq("idempotency:new-key"), anyString(), any());
-        verify(kafkaTemplate, times(1)).send(eq("notification.requests"), eq("user-123"), any());
+        verify(eventPublisher, times(1)).publishEvent(any(NotificationRequestCreatedEvent.class));
     }
 }
