@@ -80,8 +80,36 @@ class NotificationServiceTest {
     }
 
     @Test
-    @DisplayName("Return existing requestId when duplicate detected")
-    void triggerNotification_DuplicateDetected() {
+    @DisplayName("Return existing requestId when duplicate detected in DB (Fallback)")
+    void triggerNotification_DuplicateDetected_DB() {
+        // Given
+        UUID existingId = UUID.randomUUID();
+        String key = "db-duplicate-key";
+        NotificationSendRequest request = NotificationSendRequest.builder()
+                .idempotencyKey(key)
+                .build();
+
+        NotificationRequest existingRequest = NotificationRequest.builder()
+                .id(existingId)
+                .idempotencyKey(key)
+                .status(NotificationIngressStatus.ACCEPTED)
+                .build();
+
+        given(valueOperations.get("idempotency:" + key)).willReturn(null);
+        given(repository.findByIdempotencyKey(key)).willReturn(Optional.of(existingRequest));
+
+        // When
+        NotificationSendResponse response = notificationService.triggerNotification(request);
+
+        // Then
+        assertThat(response.getRequestId()).isEqualTo(existingId);
+        verify(valueOperations).set(eq("idempotency:" + key), eq(existingId.toString()), any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("Return existing requestId when duplicate detected in Redis")
+    void triggerNotification_DuplicateDetected_Redis() {
         // Given
         UUID existingId = UUID.randomUUID();
         NotificationSendRequest request = NotificationSendRequest.builder()
