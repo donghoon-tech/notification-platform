@@ -44,6 +44,17 @@ spring:
       host: 127.0.0.1
       port: 6379
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
 logging:
   level:
     org.flywaydb: INFO
