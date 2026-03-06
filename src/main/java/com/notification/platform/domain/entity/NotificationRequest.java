@@ -1,5 +1,6 @@
 package com.notification.platform.domain.entity;
 
+import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -26,6 +27,15 @@ public class NotificationRequest {
 
     @Column(unique = true)
     private String idempotencyKey;
+
+    @Column(nullable = false)
+    private String recipientId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationChannel channel;
+
+    private String targetAddress;
 
     @Column(nullable = false)
     private String producerName;
