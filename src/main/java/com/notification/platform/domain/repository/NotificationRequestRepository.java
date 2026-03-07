@@ -13,9 +13,9 @@ import java.util.UUID;
 public interface NotificationRequestRepository extends JpaRepository<NotificationRequest, UUID> {
     Optional<NotificationRequest> findByIdempotencyKey(String idempotencyKey);
 
-    Page<NotificationRequest> findAllByStatusAndCreatedAtBefore(
+    Page<NotificationRequest> findAllByStatusAndRequestedAtBefore(
             NotificationIngressStatus status, 
-            OffsetDateTime createdAt, 
+            OffsetDateTime requestedAt, 
             Pageable pageable
     );
 }

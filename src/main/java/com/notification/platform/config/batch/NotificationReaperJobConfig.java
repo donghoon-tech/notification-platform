@@ -68,10 +68,10 @@ public class NotificationReaperJobConfig {
         return new RepositoryItemReaderBuilder<NotificationRequest>()
                 .name("reaperReader")
                 .repository(repository)
-                .methodName("findAllByStatusAndCreatedAtBefore")
+                .methodName("findAllByStatusAndRequestedAtBefore")
                 .arguments(NotificationIngressStatus.ACCEPTED, threshold)
                 .pageSize(10)
-                .sorts(Collections.singletonMap("createdAt", Sort.Direction.ASC))
+                .sorts(Collections.singletonMap("requestedAt", Sort.Direction.ASC))
                 .build();
     }
 

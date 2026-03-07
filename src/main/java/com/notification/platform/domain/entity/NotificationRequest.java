@@ -51,6 +51,9 @@ public class NotificationRequest {
     @Column(nullable = false)
     private NotificationIngressStatus status;
 
+    @Column(nullable = false)
+    private OffsetDateTime requestedAt;
+
     @CreatedDate
     @Column(updatable = false)
     private OffsetDateTime createdAt;

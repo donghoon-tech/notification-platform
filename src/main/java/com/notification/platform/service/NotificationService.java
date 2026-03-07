@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Slf4j
@@ -66,6 +67,7 @@ public class NotificationService {
                 .priority(request.getPriority())
                 .payload(request.getPayload())
                 .status(NotificationIngressStatus.ACCEPTED) // FR-24: Initial status
+                .requestedAt(OffsetDateTime.now())
                 .build();
 
         repository.save(notificationRequest);
