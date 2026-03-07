@@ -51,33 +51,16 @@ public class DispatcherService {
                 kafkaTemplate.send(targetTopic, event.getRecipientId(), event);
                 log.info("Routed to channel topic: {} for request: {}", targetTopic, event.getRequestId());
                 
-                // Update status to QUEUED after successful Kafka send
-                deliveryLogRepository.save(updateStatus(deliveryLog, DeliveryStatus.QUEUED));
+                // Update status to QUEUED after successful Kafka send (relies on JPA dirty checking)
+                deliveryLog.updateStatus(DeliveryStatus.QUEUED);
             } catch (Exception e) {
                 log.error("Failed to route to Kafka: {}", e.getMessage());
-                deliveryLogRepository.save(updateStatus(deliveryLog, DeliveryStatus.FAILED, e.getMessage()));
+                deliveryLog.updateStatus(DeliveryStatus.FAILED, e.getMessage());
             }
         } else {
             log.warn("Unknown channel: {} for request: {}", event.getChannel(), event.getRequestId());
-            deliveryLogRepository.save(updateStatus(deliveryLog, DeliveryStatus.FAILED, "Unsupported channel: " + event.getChannel()));
+            deliveryLog.updateStatus(DeliveryStatus.FAILED, "Unsupported channel: " + event.getChannel());
         }
-    }
-
-    private DeliveryLog updateStatus(DeliveryLog log, DeliveryStatus status) {
-        return updateStatus(log, status, null);
-    }
-
-    private DeliveryLog updateStatus(DeliveryLog log, DeliveryStatus status, String errorMessage) {
-        return DeliveryLog.builder()
-                .id(log.getId())
-                .request(log.getRequest())
-                .recipientId(log.getRecipientId())
-                .channel(log.getChannel())
-                .targetAddress(log.getTargetAddress())
-                .status(status)
-                .errorMessage(errorMessage)
-                .createdAt(log.getCreatedAt())
-                .build();
     }
 
     private String determineTopic(NotificationChannel channel) {

@@ -48,4 +48,13 @@ public class DeliveryLog {
 
     @LastModifiedDate
     private OffsetDateTime updatedAt;
+
+    public void updateStatus(DeliveryStatus status) {
+        this.status = status;
+    }
+
+    public void updateStatus(DeliveryStatus status, String errorMessage) {
+        this.status = status;
+        this.errorMessage = errorMessage;
+    }
 }

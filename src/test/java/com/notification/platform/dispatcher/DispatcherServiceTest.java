@@ -57,7 +57,7 @@ class DispatcherServiceTest {
         dispatcherService.dispatch(event);
 
         // Then
-        verify(deliveryLogRepository, times(2)).save(any(DeliveryLog.class)); // 1. PENDING, 2. QUEUED
+        verify(deliveryLogRepository, times(1)).save(any(DeliveryLog.class)); // 1. PENDING (QUEUED relies on dirty checking)
         verify(kafkaTemplate).send(eq("notification.inapp"), eq("user-123"), eq(event));
     }
 
@@ -81,7 +81,7 @@ class DispatcherServiceTest {
         dispatcherService.dispatch(event);
 
         // Then
-        verify(deliveryLogRepository, times(2)).save(any(DeliveryLog.class));
+        verify(deliveryLogRepository, times(1)).save(any(DeliveryLog.class)); // 1. PENDING (QUEUED relies on dirty checking)
         verify(kafkaTemplate).send(eq("notification.email"), eq("user-123"), eq(event));
     }
 }
