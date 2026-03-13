@@ -49,6 +49,9 @@ spring:
       host: 127.0.0.1
       port: 6379
 
+platform:
+  api-key: "v1-secret-key-123"
+
 management:
   endpoints:
     web:

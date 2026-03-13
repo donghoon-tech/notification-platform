@@ -3,6 +3,7 @@ package com.notification.platform.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.notification.platform.api.dto.request.NotificationSendRequest;
 import com.notification.platform.api.dto.response.NotificationSendResponse;
+import com.notification.platform.config.FilterConfig;
 import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.enums.NotificationIngressStatus;
 import com.notification.platform.service.NotificationService;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(NotificationController.class)
+@Import(FilterConfig.class)
 @ActiveProfiles("test")
 class NotificationControllerTest {
 
@@ -58,6 +61,7 @@ class NotificationControllerTest {
 
         // When & Then
         mockMvc.perform(post("/v1/notifications")
+                        .header("X-API-KEY", "test-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -75,8 +79,28 @@ class NotificationControllerTest {
 
         // When & Then
         mockMvc.perform(post("/v1/notifications")
+                        .header("X-API-KEY", "test-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Notification send request fails with 401 Unauthorized when API Key is missing")
+    void sendNotification_Unauthorized() throws Exception {
+        // Given
+        NotificationSendRequest request = NotificationSendRequest.builder()
+                .idempotencyKey("test-key-123")
+                .producerName("ORDER_SERVICE")
+                .recipientId("user-789")
+                .channel(NotificationChannel.IN_APP)
+                .payload(Map.of("message", "Hello World"))
+                .build();
+
+        // When & Then (No X-API-KEY header)
+        mockMvc.perform(post("/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
     }
 }
