@@ -43,7 +43,7 @@ class NotificationControllerTest {
     @Test
     @DisplayName("Notification send request succeeds and returns 200 OK")
     void sendNotification_Success() throws Exception {
-        // Given
+        // given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("test-key-123")
                 .producerName("ORDER_SERVICE")
@@ -59,7 +59,7 @@ class NotificationControllerTest {
                         .status(NotificationIngressStatus.ACCEPTED)
                         .build());
 
-        // When & Then
+        // when & then
         mockMvc.perform(post("/v1/notifications")
                         .header("X-API-KEY", "test-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -72,12 +72,12 @@ class NotificationControllerTest {
     @Test
     @DisplayName("Notification send request fails with 400 Bad Request when validation fails")
     void sendNotification_BadRequest() throws Exception {
-        // Given: Missing required fields
+        // given: Missing required fields
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .producerName("") // Invalid: Blank
                 .build();
 
-        // When & Then
+        // when & then
         mockMvc.perform(post("/v1/notifications")
                         .header("X-API-KEY", "test-api-key")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -88,7 +88,7 @@ class NotificationControllerTest {
     @Test
     @DisplayName("Notification send request fails with 401 Unauthorized when API Key is missing")
     void sendNotification_Unauthorized() throws Exception {
-        // Given
+        // given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("test-key-123")
                 .producerName("ORDER_SERVICE")
@@ -97,7 +97,7 @@ class NotificationControllerTest {
                 .payload(Map.of("message", "Hello World"))
                 .build();
 
-        // When & Then (No X-API-KEY header)
+        // when & then (No X-API-KEY header)
         mockMvc.perform(post("/v1/notifications")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

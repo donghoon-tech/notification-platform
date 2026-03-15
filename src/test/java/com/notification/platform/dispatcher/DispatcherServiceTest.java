@@ -41,7 +41,7 @@ class DispatcherServiceTest {
     @Test
     @DisplayName("Dispatcher routes IN_APP channel correctly and updates status to QUEUED")
     void dispatch_InApp_Success() {
-        // Given
+        // given
         UUID requestId = UUID.randomUUID();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
@@ -53,10 +53,10 @@ class DispatcherServiceTest {
         NotificationRequest request = NotificationRequest.builder().id(requestId).build();
         when(notificationRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
 
-        // When
+        // when
         dispatcherService.dispatch(event);
 
-        // Then
+        // then
         verify(deliveryLogRepository, times(1)).save(any(DeliveryLog.class)); // 1. PENDING (QUEUED relies on dirty checking)
         verify(kafkaTemplate).send(eq("notification.inapp"), eq("user-123"), eq(event));
     }
@@ -64,7 +64,7 @@ class DispatcherServiceTest {
     @Test
     @DisplayName("Dispatcher routes EMAIL channel correctly and updates status to QUEUED")
     void dispatch_Email_Success() {
-        // Given
+        // given
         UUID requestId = UUID.randomUUID();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
@@ -77,10 +77,10 @@ class DispatcherServiceTest {
         NotificationRequest request = NotificationRequest.builder().id(requestId).build();
         when(notificationRequestRepository.findById(requestId)).thenReturn(Optional.of(request));
 
-        // When
+        // when
         dispatcherService.dispatch(event);
 
-        // Then
+        // then
         verify(deliveryLogRepository, times(1)).save(any(DeliveryLog.class)); // 1. PENDING (QUEUED relies on dirty checking)
         verify(kafkaTemplate).send(eq("notification.email"), eq("user-123"), eq(event));
     }

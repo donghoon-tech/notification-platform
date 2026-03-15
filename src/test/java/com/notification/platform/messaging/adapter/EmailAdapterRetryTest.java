@@ -6,6 +6,7 @@ import com.notification.platform.domain.enums.DeliveryStatus;
 import com.notification.platform.domain.enums.NotificationChannel;
 import com.notification.platform.domain.repository.DeliveryLogRepository;
 import com.notification.platform.messaging.event.NotificationRequestEvent;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,8 +46,9 @@ class EmailAdapterRetryTest {
     private DeliveryLogRepository deliveryLogRepository;
 
     @Test
+    @DisplayName("Should retry 3 times and then route to DLQ on failure")
     void shouldRetryThreeTimesAndThenRouteToDlqOnFailure() throws Exception {
-        // Given
+        // given
         UUID requestId = UUID.randomUUID();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
@@ -73,10 +75,10 @@ class EmailAdapterRetryTest {
         doThrow(new RuntimeException("Simulated mail server down"))
                 .when(mailSender).send(any(SimpleMailMessage.class));
 
-        // When
+        // when
         kafkaTemplate.send("notification.email", event.getRecipientId(), event);
 
-        // Then
+        // then
         // 1. Verify that mailSender.send() was called exactly 4 times (1 initial + 3 retries)
         // Awaitility handles the asynchronous nature of the delays (1s -> 2s -> 4s)
         await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {

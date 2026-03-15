@@ -17,13 +17,13 @@ class JpaAuditConfigTest {
     @Test
     @DisplayName("DateTimeProvider should provide OffsetDateTime")
     void offsetDateTimeProvider_ReturnsOffsetDateTime() {
-        // Given
+        // given
         DateTimeProvider provider = jpaAuditConfig.offsetDateTimeProvider();
 
-        // When
+        // when
         Optional<TemporalAccessor> now = provider.getNow();
 
-        // Then
+        // then
         assertThat(now).isPresent();
         assertThat(now.get()).isInstanceOf(OffsetDateTime.class);
     }

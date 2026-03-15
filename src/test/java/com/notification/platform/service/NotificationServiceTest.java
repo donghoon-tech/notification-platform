@@ -54,7 +54,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("Process new request and save with ACCEPTED status (FR-24)")
     void triggerNotification_SavesWithAcceptedStatus() {
-        // Given
+        // given
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("new-key")
                 .producerName("TEST_SERVICE")
@@ -68,10 +68,10 @@ class NotificationServiceTest {
         given(valueOperations.get(anyString())).willReturn(null);
         given(repository.findByIdempotencyKey(anyString())).willReturn(Optional.empty());
 
-        // When
+        // when
         notificationService.triggerNotification(request);
 
-        // Then: FR-24 - Initial status must be ACCEPTED
+        // then: FR-24 - Initial status must be ACCEPTED
         ArgumentCaptor<NotificationRequest> captor = ArgumentCaptor.forClass(NotificationRequest.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(NotificationIngressStatus.ACCEPTED);
@@ -82,7 +82,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("Return existing requestId when duplicate detected in DB (Fallback)")
     void triggerNotification_DuplicateDetected_DB() {
-        // Given
+        // given
         UUID existingId = UUID.randomUUID();
         String key = "db-duplicate-key";
         NotificationSendRequest request = NotificationSendRequest.builder()
@@ -98,10 +98,10 @@ class NotificationServiceTest {
         given(valueOperations.get("idempotency:" + key)).willReturn(null);
         given(repository.findByIdempotencyKey(key)).willReturn(Optional.of(existingRequest));
 
-        // When
+        // when
         NotificationSendResponse response = notificationService.triggerNotification(request);
 
-        // Then
+        // then
         assertThat(response.getRequestId()).isEqualTo(existingId);
         verify(valueOperations).set(eq("idempotency:" + key), eq(existingId.toString()), any());
         verify(eventPublisher, never()).publishEvent(any());
@@ -110,7 +110,7 @@ class NotificationServiceTest {
     @Test
     @DisplayName("Return existing requestId when duplicate detected in Redis")
     void triggerNotification_DuplicateDetected_Redis() {
-        // Given
+        // given
         UUID existingId = UUID.randomUUID();
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("duplicate-key")
@@ -118,10 +118,10 @@ class NotificationServiceTest {
 
         given(valueOperations.get("idempotency:duplicate-key")).willReturn(existingId.toString());
 
-        // When
+        // when
         NotificationSendResponse response = notificationService.triggerNotification(request);
 
-        // Then
+        // then
         assertThat(response.getRequestId()).isEqualTo(existingId);
         verify(eventPublisher, never()).publishEvent(any());
     }

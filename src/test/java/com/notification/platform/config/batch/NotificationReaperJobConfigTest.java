@@ -38,7 +38,7 @@ class NotificationReaperJobConfigTest {
     @Autowired
     private NotificationRequestRepository repository;
 
-    @MockBean
+    @MockBean(name = "defaultRetryTopicKafkaTemplate")
     private KafkaTemplate<String, Object> kafkaTemplate;
 
     @BeforeEach
@@ -49,7 +49,7 @@ class NotificationReaperJobConfigTest {
     @Test
     @DisplayName("Reaper Job should process ACCEPTED requests older than 5 minutes based on requestedAt")
     void reaperJob_Success() throws Exception {
-        // Given: 1 old ACCEPTED request, 1 new ACCEPTED request
+        // given: 1 old ACCEPTED request, 1 new ACCEPTED request
         UUID oldId = UUID.randomUUID();
         NotificationRequest oldRequest = NotificationRequest.builder()
                 .id(oldId)
@@ -81,10 +81,10 @@ class NotificationReaperJobConfigTest {
                 .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
-        // When
+        // when
         JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
 
-        // Then
+        // then
         assertThat(jobExecution.getExitStatus()).isEqualTo(ExitStatus.COMPLETED);
         
         NotificationRequest processedOld = repository.findById(oldId).orElseThrow();
@@ -99,6 +99,7 @@ class NotificationReaperJobConfigTest {
     @Test
     @DisplayName("Reaper Job should keep status as ACCEPTED if Kafka dispatch fails")
     void reaperJob_KafkaFailure() throws Exception {
+        // given
         UUID id = UUID.randomUUID();
         NotificationRequest request = NotificationRequest.builder()
                 .id(id)
@@ -119,10 +120,10 @@ class NotificationReaperJobConfigTest {
                 .addLong("time", System.currentTimeMillis())
                 .toJobParameters();
 
-        // When
+        // when
         JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
 
-        // Then
+        // then
         assertThat(jobExecution.getExitStatus()).isEqualTo(ExitStatus.COMPLETED); 
         
         NotificationRequest result = repository.findById(id).orElseThrow();

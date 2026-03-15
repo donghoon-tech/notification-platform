@@ -43,7 +43,7 @@ public class NotificationEventHandler {
             updateStatus(event.getRequestId(), NotificationIngressStatus.DISPATCHED);
             log.info("Dispatched to Kafka and updated status to DISPATCHED: {}", event.getRequestId());
         } catch (Exception e) {
-            log.error("Kafka dispatch failed for request: {}. Marking status as FAILED.", event.getRequestId(), e);
+            log.error("Kafka dispatch failed for request: {}", event.getRequestId(), e);
             updateStatus(event.getRequestId(), NotificationIngressStatus.FAILED);
         }
     }
