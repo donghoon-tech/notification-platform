@@ -65,16 +65,7 @@ public class InAppAdapter {
     private void updateDeliveryStatus(java.util.UUID requestId, DeliveryStatus status) {
         deliveryLogRepository.findByRequestIdAndChannel(requestId, NotificationChannel.IN_APP)
                 .ifPresent(deliveryLog -> {
-                    DeliveryLog updatedLog = DeliveryLog.builder()
-                            .id(deliveryLog.getId())
-                            .request(deliveryLog.getRequest())
-                            .recipientId(deliveryLog.getRecipientId())
-                            .channel(deliveryLog.getChannel())
-                            .targetAddress(deliveryLog.getTargetAddress())
-                            .status(status)
-                            .createdAt(deliveryLog.getCreatedAt())
-                            .build();
-                    deliveryLogRepository.save(updatedLog);
+                    deliveryLog.updateStatus(status);
                     log.info("DeliveryLog updated to {} for request: {}", status, requestId);
                 });
     }

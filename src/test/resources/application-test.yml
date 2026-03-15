@@ -11,6 +11,9 @@ spring:
     show-sql: true
   flyway:
     enabled: false
+  kafka:
+    listener:
+      auto-startup: false
 
 platform:
   api-key: "test-api-key"

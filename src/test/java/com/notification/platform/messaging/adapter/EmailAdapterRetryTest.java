@@ -25,12 +25,14 @@ import java.util.concurrent.TimeUnit;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(properties = {
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.kafka.topic.email=notification.email",
         "spring.kafka.consumer.group-id=test-group",
-        "management.health.mail.enabled=false"
+        "management.health.mail.enabled=false",
+        "spring.kafka.listener.auto-startup=true"
 })
 @EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" }, topics = { "notification.email" })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -87,9 +89,7 @@ class EmailAdapterRetryTest {
 
         // 2. Verify that after exhausting retries, DltHandler is invoked and status is set to FAILED
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(deliveryLogRepository, atLeastOnce()).save(argThat(savedLog -> 
-                savedLog.getRequest().getId().equals(requestId) && savedLog.getStatus() == DeliveryStatus.FAILED
-            ));
+            assertEquals(DeliveryStatus.FAILED, mockLog.getStatus());
         });
     }
 }

@@ -99,7 +99,6 @@ public class NotificationReaperJobConfig {
 
                     kafkaTemplate.send(TOPIC, request.getRecipientId(), event);
                     request.updateStatus(NotificationIngressStatus.DISPATCHED);
-                    repository.save(request);
                     log.info("Reaper successfully re-dispatched request: {}", request.getId());
                 } catch (Exception e) {
                     log.error("Reaper failed to re-dispatch request: {}", request.getId(), e);
