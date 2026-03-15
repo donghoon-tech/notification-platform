@@ -1,0 +1,1 @@
+ALTER TABLE notification_requests ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'ACCEPTED';
