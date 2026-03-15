@@ -43,6 +43,8 @@ spring:
       inbound: notification.requests
       inapp: notification.inapp
       email: notification.email
+      retry: notification.retry
+      dlq: notification.dlq
   mail:
     host: 127.0.0.1
     port: 1025
