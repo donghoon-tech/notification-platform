@@ -21,7 +21,6 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +41,9 @@ class NotificationServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private com.notification.platform.config.SnowflakeIdGenerator snowflakeIdGenerator;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -83,7 +85,7 @@ class NotificationServiceTest {
     @DisplayName("Return existing requestId when duplicate detected in DB (Fallback)")
     void triggerNotification_DuplicateDetected_DB() {
         // given
-        UUID existingId = UUID.randomUUID();
+        Long existingId = System.nanoTime();
         String key = "db-duplicate-key";
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey(key)
@@ -111,7 +113,7 @@ class NotificationServiceTest {
     @DisplayName("Return existing requestId when duplicate detected in Redis")
     void triggerNotification_DuplicateDetected_Redis() {
         // given
-        UUID existingId = UUID.randomUUID();
+        Long existingId = System.nanoTime();
         NotificationSendRequest request = NotificationSendRequest.builder()
                 .idempotencyKey("duplicate-key")
                 .build();

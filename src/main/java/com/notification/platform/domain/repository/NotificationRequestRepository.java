@@ -8,9 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
-public interface NotificationRequestRepository extends JpaRepository<NotificationRequest, UUID> {
+public interface NotificationRequestRepository extends JpaRepository<NotificationRequest, Long> {
     Optional<NotificationRequest> findByIdempotencyKey(String idempotencyKey);
 
     Page<NotificationRequest> findAllByStatusAndRequestedAtBefore(

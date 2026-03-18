@@ -4,7 +4,6 @@ import com.notification.platform.domain.enums.NotificationChannel;
 import lombok.*;
 
 import java.util.Map;
-import java.util.UUID;
 
 @Getter
 @Builder
@@ -12,7 +11,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class NotificationRequestEvent {
 
-    private UUID requestId;
+    private Long requestId;
     private String recipientId;
     private NotificationChannel channel;
     private String targetAddress;

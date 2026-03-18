@@ -5,12 +5,11 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.util.Map;
-import java.util.UUID;
 
 @Getter
 @Builder
 public class NotificationRequestCreatedEvent {
-    private final UUID requestId;
+    private final Long requestId;
     private final String recipientId;
     private final NotificationChannel channel;
     private final String targetAddress;

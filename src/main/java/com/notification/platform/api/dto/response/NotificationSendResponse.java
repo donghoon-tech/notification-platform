@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
 
 @Getter
 @Builder
@@ -14,7 +13,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class NotificationSendResponse {
 
-    private UUID requestId;
+    private Long requestId;
     private NotificationIngressStatus status;
 
 }

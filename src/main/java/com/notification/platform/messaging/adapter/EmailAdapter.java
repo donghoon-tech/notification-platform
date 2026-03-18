@@ -67,7 +67,7 @@ public class EmailAdapter {
         // Implement an Admin API in v4.0 to manually consume and replay these dead letters.
     }
 
-    private void updateDeliveryStatus(java.util.UUID requestId, DeliveryStatus status) {
+    private void updateDeliveryStatus(Long requestId, DeliveryStatus status) {
         deliveryLogRepository.findByRequestIdAndChannel(requestId, NotificationChannel.EMAIL)
                 .ifPresent(deliveryLog -> {
                     deliveryLog.updateStatus(status);

@@ -13,7 +13,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -23,6 +22,7 @@ public class DispatcherService {
     private final DeliveryLogRepository deliveryLogRepository;
     private final NotificationRequestRepository notificationRequestRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.notification.platform.config.SnowflakeIdGenerator snowflakeIdGenerator;
 
     @Transactional
     public void dispatch(NotificationRequestEvent event) {
@@ -34,7 +34,7 @@ public class DispatcherService {
 
         // 2. Create DeliveryLog (Track attempt)
         DeliveryLog deliveryLog = DeliveryLog.builder()
-                .id(UUID.randomUUID())
+                .id(snowflakeIdGenerator.nextId())
                 .request(request)
                 .recipientId(event.getRecipientId())
                 .channel(event.getChannel())

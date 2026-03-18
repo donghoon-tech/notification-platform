@@ -19,7 +19,6 @@ import org.springframework.test.annotation.DirtiesContext;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
@@ -27,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest(properties = {
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.kafka.topic.email=notification.email",
@@ -51,7 +51,7 @@ class EmailAdapterRetryTest {
     @DisplayName("Should retry 3 times and then route to DLQ on failure")
     void shouldRetryThreeTimesAndThenRouteToDlqOnFailure() throws Exception {
         // given
-        UUID requestId = UUID.randomUUID();
+        Long requestId = System.nanoTime();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
                 .recipientId("user-123")
@@ -65,7 +65,7 @@ class EmailAdapterRetryTest {
                 .build();
 
         DeliveryLog mockLog = DeliveryLog.builder()
-                .id(UUID.randomUUID())
+                .id(System.nanoTime())
                 .request(mockRequest)
                 .channel(NotificationChannel.EMAIL)
                 .build();

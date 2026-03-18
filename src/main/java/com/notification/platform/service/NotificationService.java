@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -25,6 +24,7 @@ public class NotificationService {
     private final NotificationRequestRepository repository;
     private final StringRedisTemplate redisTemplate;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.notification.platform.config.SnowflakeIdGenerator snowflakeIdGenerator;
 
     private static final String IDEMPOTENCY_PREFIX = "idempotency:";
     private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
@@ -38,7 +38,7 @@ public class NotificationService {
         if (cachedRequestId != null) {
             log.info("Duplicate request detected in cache for key: {}", idempotencyKey);
             return NotificationSendResponse.builder()
-                    .requestId(UUID.fromString(cachedRequestId))
+                    .requestId(Long.parseLong(cachedRequestId))
                     .status(NotificationIngressStatus.ACCEPTED)
                     .build();
         }
@@ -58,7 +58,7 @@ public class NotificationService {
 
     private NotificationSendResponse createAndPublishEvent(NotificationSendRequest request) {
         NotificationRequest notificationRequest = NotificationRequest.builder()
-                .id(UUID.randomUUID())
+                .id(snowflakeIdGenerator.nextId())
                 .idempotencyKey(request.getIdempotencyKey())
                 .recipientId(request.getRecipientId())
                 .channel(request.getChannel())

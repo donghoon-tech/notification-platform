@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -48,7 +47,7 @@ public class NotificationEventHandler {
         }
     }
 
-    private void updateStatus(UUID requestId, NotificationIngressStatus status) {
+    private void updateStatus(Long requestId, NotificationIngressStatus status) {
         repository.findById(requestId).ifPresent(request -> request.updateStatus(status));
     }
 }

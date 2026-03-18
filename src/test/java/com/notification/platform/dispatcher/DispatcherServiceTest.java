@@ -17,7 +17,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,6 +34,9 @@ class DispatcherServiceTest {
     @Mock
     private KafkaTemplate<String, Object> kafkaTemplate;
 
+    @Mock
+    private com.notification.platform.config.SnowflakeIdGenerator snowflakeIdGenerator;
+
     @InjectMocks
     private DispatcherService dispatcherService;
 
@@ -42,7 +44,7 @@ class DispatcherServiceTest {
     @DisplayName("Dispatcher routes IN_APP channel correctly and updates status to QUEUED")
     void dispatch_InApp_Success() {
         // given
-        UUID requestId = UUID.randomUUID();
+        Long requestId = System.nanoTime();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
                 .recipientId("user-123")
@@ -65,7 +67,7 @@ class DispatcherServiceTest {
     @DisplayName("Dispatcher routes EMAIL channel correctly and updates status to QUEUED")
     void dispatch_Email_Success() {
         // given
-        UUID requestId = UUID.randomUUID();
+        Long requestId = System.nanoTime();
         NotificationRequestEvent event = NotificationRequestEvent.builder()
                 .requestId(requestId)
                 .recipientId("user-123")

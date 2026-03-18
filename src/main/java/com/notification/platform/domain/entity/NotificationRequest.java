@@ -11,7 +11,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 @Entity
 @Table(name = "notification_requests")
@@ -23,7 +22,7 @@ import java.util.UUID;
 public class NotificationRequest {
 
     @Id
-    private UUID id;
+    private Long id;
 
     @Column(unique = true)
     private String idempotencyKey;

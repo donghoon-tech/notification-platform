@@ -20,7 +20,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,7 +49,7 @@ class NotificationReaperJobConfigTest {
     @DisplayName("Reaper Job should process ACCEPTED requests older than 5 minutes based on requestedAt")
     void reaperJob_Success() throws Exception {
         // given: 1 old ACCEPTED request, 1 new ACCEPTED request
-        UUID oldId = UUID.randomUUID();
+        Long oldId = System.nanoTime();
         NotificationRequest oldRequest = NotificationRequest.builder()
                 .id(oldId)
                 .idempotencyKey("old-key")
@@ -63,7 +62,7 @@ class NotificationReaperJobConfigTest {
                 .build();
         repository.save(oldRequest);
 
-        UUID newId = UUID.randomUUID();
+        Long newId = System.nanoTime();
         NotificationRequest newRequest = NotificationRequest.builder()
                 .id(newId)
                 .idempotencyKey("new-key")
@@ -100,7 +99,7 @@ class NotificationReaperJobConfigTest {
     @DisplayName("Reaper Job should keep status as ACCEPTED if Kafka dispatch fails")
     void reaperJob_KafkaFailure() throws Exception {
         // given
-        UUID id = UUID.randomUUID();
+        Long id = System.nanoTime();
         NotificationRequest request = NotificationRequest.builder()
                 .id(id)
                 .idempotencyKey("fail-key")

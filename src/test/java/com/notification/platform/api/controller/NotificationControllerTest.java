@@ -18,7 +18,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Map;
-import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -52,7 +51,7 @@ class NotificationControllerTest {
                 .payload(Map.of("message", "Hello World"))
                 .build();
 
-        UUID expectedId = UUID.randomUUID();
+        Long expectedId = System.nanoTime();
         given(notificationService.triggerNotification(any(NotificationSendRequest.class)))
                 .willReturn(NotificationSendResponse.builder()
                         .requestId(expectedId)
