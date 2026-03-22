@@ -13,5 +13,7 @@ public enum DeliveryStatus {
     /** Successfully delivered to the end user */
     DELIVERED,
     /** Failed to deliver */
-    FAILED;
+    FAILED,
+    /** Rerouted to a fallback channel */
+    REROUTED;
 }
