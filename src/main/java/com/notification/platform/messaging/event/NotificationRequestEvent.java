@@ -6,7 +6,7 @@ import lombok.*;
 import java.util.Map;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class NotificationRequestEvent {
