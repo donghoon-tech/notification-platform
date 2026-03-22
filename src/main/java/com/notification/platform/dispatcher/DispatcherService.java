@@ -23,16 +23,42 @@ public class DispatcherService {
     private final NotificationRequestRepository notificationRequestRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final com.notification.platform.config.SnowflakeIdGenerator snowflakeIdGenerator;
+    private final PresenceManager presenceManager;
 
     @Transactional
     public void dispatch(NotificationRequestEvent event) {
-        log.info("Dispatching notification request: {}", event.getRequestId());
+        log.info("Dispatching notification request: {} for channel: {}", event.getRequestId(), event.getChannel());
 
         // 1. Fetch the original request
         NotificationRequest request = notificationRequestRepository.findById(event.getRequestId())
                 .orElseThrow(() -> new IllegalArgumentException("Request not found: " + event.getRequestId()));
 
-        // 2. Create DeliveryLog (Track attempt)
+        // 2. Presence Check & Fallback Logic (Only for IN_APP)
+        if (event.getChannel() == NotificationChannel.IN_APP && !presenceManager.isOnline(event.getRecipientId())) {
+            log.info("User {} is offline. Rerouting IN_APP request {} to EMAIL.", event.getRecipientId(), event.getRequestId());
+            
+            // Create a REROUTED log for the original IN_APP attempt
+            DeliveryLog reroutedLog = DeliveryLog.builder()
+                    .id(snowflakeIdGenerator.nextId())
+                    .request(request)
+                    .recipientId(event.getRecipientId())
+                    .channel(NotificationChannel.IN_APP)
+                    .targetAddress(event.getTargetAddress())
+                    .status(DeliveryStatus.REROUTED)
+                    .errorMessage("User offline, falling back to EMAIL")
+                    .build();
+            deliveryLogRepository.save(reroutedLog);
+
+            // Reroute by calling dispatch again with EMAIL channel
+            NotificationRequestEvent fallbackEvent = event.toBuilder()
+                    .channel(NotificationChannel.EMAIL)
+                    .build();
+            
+            dispatch(fallbackEvent);
+            return;
+        }
+
+        // 3. Create DeliveryLog (Track attempt)
         DeliveryLog deliveryLog = DeliveryLog.builder()
                 .id(snowflakeIdGenerator.nextId())
                 .request(request)
