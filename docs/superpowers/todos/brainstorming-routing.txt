@@ -1,0 +1,9 @@
+[x] Explore project context
+[x] Offer visual companion (N/A)
+[x] Ask clarifying questions
+[x] Propose 2-3 approaches
+[x] Present design
+[x] Write design doc
+[x] Spec review loop
+[x] User reviews written spec
+[x] Transition to implementation
