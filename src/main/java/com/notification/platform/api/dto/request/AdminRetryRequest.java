@@ -3,7 +3,7 @@ package com.notification.platform.api.dto.request;
 import lombok.*;
 
 @Getter
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class AdminRetryRequest {
