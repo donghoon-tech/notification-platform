@@ -15,5 +15,7 @@ public enum DeliveryStatus {
     /** Failed to deliver */
     FAILED,
     /** Rerouted to a fallback channel */
-    REROUTED;
+    REROUTED,
+    /** Manual retry triggered by Admin */
+    RETRY_PENDING;
 }
